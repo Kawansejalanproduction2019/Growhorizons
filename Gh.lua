@@ -3,6 +3,7 @@ local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
 
@@ -10,6 +11,7 @@ local purchaseRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChi
 local sellRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellItems")
 local harvestRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HarvestFruit")
 local plantRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PlantSeed")
+local removeRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):FindFirstChild("RemovePlant")
 
 local isAutoBuyWhitelistOn = false
 local isAutoBuyAllOn = false
@@ -18,16 +20,22 @@ local isAutoBuyAllGearOn = false
 local isAutoSellOn = false
 local isAutoFarmOn = false
 local isAutoPlantOn = false
+local isAutoShovelOn = false
+local isAntiAfkOn = false
 
+local autoBuyMode = "Normal"
 local sellIntervalSeconds = 60
 local harvestDuration = 60
 local harvestCooldown = 300
 local harvestState = "Harvesting"
 local harvestTimer = 0
 local sellTimer = 0
+local antiAfkIntervalMinutes = 5
+local afkTimer = 0
 
 local plantSourceMode = "All"
 local plantLocationMode = "Player"
+local shovelMode = "All"
 local stackedPosition = nil
 
 local isFlying = false
@@ -208,7 +216,7 @@ contentContainer.Parent = mainFrame
 local infoScroll = Instance.new("ScrollingFrame")
 infoScroll.Size = UDim2.new(1, 0, 1, 0)
 infoScroll.BackgroundTransparency = 1
-infoScroll.CanvasSize = UDim2.new(0, 0, 0, 500)
+infoScroll.CanvasSize = UDim2.new(0, 0, 0, 750)
 infoScroll.ScrollBarThickness = 6
 infoScroll.Parent = contentContainer
 
@@ -217,7 +225,7 @@ infoText.Size = UDim2.new(0.9, 0, 1, 0)
 infoText.Position = UDim2.new(0.05, 0, 0.02, 0)
 infoText.BackgroundTransparency = 1
 infoText.TextColor3 = Color3.fromRGB(200, 200, 200)
-infoText.Text = "Rhdevs Hub - Control Panel v6\n\nKEUNGGULAN TOOLS:\n- Sistem Slider Dinamis untuk pengaturan waktu yang akurat.\n- Loop Harvest Pintar: Bekerja sesuai durasi dan beristirahat otomatis.\n- Modifikasi Karakter: Terbang dengan dukungan Mobile & PC, Atur Kecepatan, dan Lompatan.\n- Auto Plant Akurasi Tinggi: Mengenali bibit meski nama berubah di inventory.\n\nCARA PENGGUNAAN:\n1. Auto Harvest: Geser slider 'Durasi Harvest' untuk lama panen, dan slider 'Jeda Harvest' untuk waktu istirahat. Klik tombol Auto Harvest untuk memulai siklus.\n2. Auto Sell: Geser slider 'Interval Sell' untuk menentukan berapa detik sekali barang dijual.\n3. Auto Plant: Pilih mode sumber (Inventory/Whitelist/Dipegang) dan lokasi (Pemain/Acak/Tumpuk). Mode tumpuk akan mencatat posisi kamu saat tombol itu ditekan.\n4. Fly: Klik tombol Fly di tab Player. Untuk PC, gunakan tombol gerak biasa. Untuk Mobile, gunakan tombol NAIK dan TURUN yang muncul di layar.\n\nPERINGATAN:\nGunakan program ini dengan bijak. Penyalahgunaan fitur seperti menumpuk ribuan tanaman di satu titik atau spam request tanpa jeda dapat menyebabkan lag parah pada server atau memicu sistem deteksi eksploit dari developer. Bermainlah dengan cerdas dan laporkan celah yang kamu temukan."
+infoText.Text = "Rhdevs Hub - Control Panel\n\nKEUNGGULAN TOOLS:\n- UTC Global Time Beta Mode: Mode Auto Buy Beta sinkron langsung dengan jam UTC dunia.\n- Teleport & Return: Fitur Sell dan Buy merekam posisi asli dan mengembalikan karakter instan.\n- Advanced Harvest: Target GrowthAnchorIndex diubah hingga skala 6 untuk melibas semua tipe pohon (seperti Banana).\n- Auto Shovel/Remove Plant: Fitur baru mencabut tanaman/buah langsung dari map dengan pencocokan nama dan mode Whitelist.\n- Filter Buah KG: Auto Plant mengabaikan semua item yang mengandung teks 'KG'.\n- Auto Copy Clipboard: Tombol Dapatkan Posisi otomatis menyalin nilai.\n\nCARA PENGGUNAAN:\n1. Auto Buy Mode: Gunakan mode Normal untuk jarak jauh. Gunakan mode Beta (Teleport) untuk Bypass tingkat tinggi.\n2. Auto Harvest: Atur slider Durasi dan Jeda.\n3. Auto Sell: Geser slider interval detik.\n4. Auto Plant & Shovel: Pilih mode sumber (All/Whitelist). Mode Shovel (mencabut tanaman) bergantung pada whitelist seed yang kamu pilih!\n5. Terbang & Anti-AFK: Nyalakan dari tab Player."
 infoText.Font = Enum.Font.Gotham
 infoText.TextSize = 13
 infoText.TextWrapped = true
@@ -373,6 +381,25 @@ btnToggleSeedView.MouseButton1Click:Connect(function()
     end
 end)
 
+local btnAutoBuyMode = Instance.new("TextButton")
+btnAutoBuyMode.Size = UDim2.new(0.9, 0, 0, 40)
+btnAutoBuyMode.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+btnAutoBuyMode.TextColor3 = Color3.fromRGB(200, 255, 200)
+btnAutoBuyMode.Text = "Mode Auto Buy: Normal"
+btnAutoBuyMode.Font = Enum.Font.GothamBold
+btnAutoBuyMode.Parent = farmScroll
+Instance.new("UICorner", btnAutoBuyMode).CornerRadius = UDim.new(0, 6)
+
+btnAutoBuyMode.MouseButton1Click:Connect(function()
+    if autoBuyMode == "Normal" then
+        autoBuyMode = "Beta"
+        btnAutoBuyMode.Text = "Mode Auto Buy: Beta (Teleport UTC)"
+    else
+        autoBuyMode = "Normal"
+        btnAutoBuyMode.Text = "Mode Auto Buy: Normal"
+    end
+end)
+
 local btnAutoBuySeedWhitelist = Instance.new("TextButton")
 btnAutoBuySeedWhitelist.Size = UDim2.new(0.9, 0, 0, 40)
 btnAutoBuySeedWhitelist.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
@@ -507,7 +534,7 @@ local btnPlantMode = Instance.new("TextButton")
 btnPlantMode.Size = UDim2.new(0.9, 0, 0, 40)
 btnPlantMode.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 btnPlantMode.TextColor3 = Color3.fromRGB(200, 200, 255)
-btnPlantMode.Text = "Mode: Semua Inventory"
+btnPlantMode.Text = "Mode Plant: Semua Inventory"
 btnPlantMode.Font = Enum.Font.GothamBold
 btnPlantMode.Parent = farmScroll
 Instance.new("UICorner", btnPlantMode).CornerRadius = UDim.new(0, 6)
@@ -516,7 +543,7 @@ local btnLocationMode = Instance.new("TextButton")
 btnLocationMode.Size = UDim2.new(0.9, 0, 0, 40)
 btnLocationMode.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 btnLocationMode.TextColor3 = Color3.fromRGB(200, 255, 200)
-btnLocationMode.Text = "Lokasi: Mengikuti Posisi Pemain"
+btnLocationMode.Text = "Lokasi Plant: Mengikuti Posisi"
 btnLocationMode.Font = Enum.Font.GothamBold
 btnLocationMode.Parent = farmScroll
 Instance.new("UICorner", btnLocationMode).CornerRadius = UDim.new(0, 6)
@@ -530,10 +557,29 @@ btnAutoPlant.Font = Enum.Font.GothamBold
 btnAutoPlant.Parent = farmScroll
 Instance.new("UICorner", btnAutoPlant).CornerRadius = UDim.new(0, 6)
 
+local btnShovelMode = Instance.new("TextButton")
+btnShovelMode.Size = UDim2.new(0.9, 0, 0, 40)
+btnShovelMode.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+btnShovelMode.TextColor3 = Color3.fromRGB(255, 200, 200)
+btnShovelMode.Text = "Mode Shovel: Semua Tanaman"
+btnShovelMode.Font = Enum.Font.GothamBold
+btnShovelMode.Parent = farmScroll
+Instance.new("UICorner", btnShovelMode).CornerRadius = UDim.new(0, 6)
+
+local btnAutoShovel = Instance.new("TextButton")
+btnAutoShovel.Size = UDim2.new(0.9, 0, 0, 45)
+btnAutoShovel.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+btnAutoShovel.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnAutoShovel.Text = "Auto Shovel / Remove Plant [OFF]"
+btnAutoShovel.Font = Enum.Font.GothamBold
+btnAutoShovel.Parent = farmScroll
+Instance.new("UICorner", btnAutoShovel).CornerRadius = UDim.new(0, 6)
+
 local playerScroll = Instance.new("ScrollingFrame")
 playerScroll.Size = UDim2.new(1, 0, 1, 0)
 playerScroll.BackgroundTransparency = 1
 playerScroll.Visible = false
+playerScroll.CanvasSize = UDim2.new(0, 0, 0, 800)
 playerScroll.ScrollBarThickness = 6
 playerScroll.Parent = contentContainer
 
@@ -547,10 +593,6 @@ local playerPadding = Instance.new("UIPadding")
 playerPadding.PaddingTop = UDim.new(0, 10)
 playerPadding.PaddingBottom = UDim.new(0, 10)
 playerPadding.Parent = playerScroll
-
-playerLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    playerScroll.CanvasSize = UDim2.new(0, 0, 0, playerLayout.AbsoluteContentSize.Y + 20)
-end)
 
 createSlider(playerScroll, "Walk Speed", 16, 200, 16, function(val)
     if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -577,6 +619,19 @@ btnFly.Text = "Toggle Fly [OFF]"
 btnFly.Font = Enum.Font.GothamBold
 btnFly.Parent = playerScroll
 Instance.new("UICorner", btnFly).CornerRadius = UDim.new(0, 6)
+
+createSlider(playerScroll, "Interval Anti-AFK (Menit)", 1, 15, 5, function(val)
+    antiAfkIntervalMinutes = val
+end)
+
+local btnAntiAfk = Instance.new("TextButton")
+btnAntiAfk.Size = UDim2.new(0.9, 0, 0, 45)
+btnAntiAfk.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+btnAntiAfk.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnAntiAfk.Text = "Anti-AFK & Auto Jump [OFF]"
+btnAntiAfk.Font = Enum.Font.GothamBold
+btnAntiAfk.Parent = playerScroll
+Instance.new("UICorner", btnAntiAfk).CornerRadius = UDim.new(0, 6)
 
 local tpScroll = Instance.new("ScrollingFrame")
 tpScroll.Size = UDim2.new(1, 0, 1, 0)
@@ -646,7 +701,7 @@ btnGetPos.Size = UDim2.new(1, 0, 0, 35)
 btnGetPos.Position = UDim2.new(0, 0, 0, 0)
 btnGetPos.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 btnGetPos.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnGetPos.Text = "Dapatkan Posisi Saat Ini"
+btnGetPos.Text = "Copy Posisi ke Clipboard"
 btnGetPos.Font = Enum.Font.GothamBold
 btnGetPos.Parent = manualTpFrame
 Instance.new("UICorner", btnGetPos).CornerRadius = UDim.new(0, 6)
@@ -720,6 +775,13 @@ btnGetPos.MouseButton1Click:Connect(function()
         local pos = player.Character.HumanoidRootPart.Position
         local roundedPos = math.round(pos.X) .. ", " .. math.round(pos.Y) .. ", " .. math.round(pos.Z)
         inputCopiedPos.Text = roundedPos
+        if setclipboard then
+            setclipboard(roundedPos)
+            btnGetPos.Text = "Tercopy ke Clipboard!"
+            task.delay(1.5, function()
+                btnGetPos.Text = "Copy Posisi ke Clipboard"
+            end)
+        end
     end
 end)
 
@@ -797,29 +859,29 @@ end)
 btnPlantMode.MouseButton1Click:Connect(function()
     if plantSourceMode == "All" then
         plantSourceMode = "Whitelist"
-        btnPlantMode.Text = "Mode: Sesuai Whitelist"
+        btnPlantMode.Text = "Mode Plant: Sesuai Whitelist"
     elseif plantSourceMode == "Whitelist" then
         plantSourceMode = "Equipped"
-        btnPlantMode.Text = "Mode: Sedang Dipegang Saja"
+        btnPlantMode.Text = "Mode Plant: Sedang Dipegang Saja"
     else
         plantSourceMode = "All"
-        btnPlantMode.Text = "Mode: Semua Inventory"
+        btnPlantMode.Text = "Mode Plant: Semua Inventory"
     end
 end)
 
 btnLocationMode.MouseButton1Click:Connect(function()
     if plantLocationMode == "Player" then
         plantLocationMode = "Random"
-        btnLocationMode.Text = "Lokasi: Acak Sekitar Pemain"
+        btnLocationMode.Text = "Lokasi Plant: Acak Sekitar Pemain"
     elseif plantLocationMode == "Random" then
         plantLocationMode = "Stacked"
-        btnLocationMode.Text = "Lokasi: Ditumpuk (Posisi Saat Ini)"
+        btnLocationMode.Text = "Lokasi Plant: Ditumpuk (Posisi Saat Ini)"
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             stackedPosition = player.Character.HumanoidRootPart.Position
         end
     else
         plantLocationMode = "Player"
-        btnLocationMode.Text = "Lokasi: Mengikuti Posisi Pemain"
+        btnLocationMode.Text = "Lokasi Plant: Mengikuti Posisi"
     end
 end)
 
@@ -831,6 +893,39 @@ btnAutoPlant.MouseButton1Click:Connect(function()
     else
         btnAutoPlant.Text = "Auto Plant [OFF]"
         btnAutoPlant.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+    end
+end)
+
+btnShovelMode.MouseButton1Click:Connect(function()
+    if shovelMode == "All" then
+        shovelMode = "Whitelist"
+        btnShovelMode.Text = "Mode Shovel: Sesuai Whitelist"
+    else
+        shovelMode = "All"
+        btnShovelMode.Text = "Mode Shovel: Semua Tanaman"
+    end
+end)
+
+btnAutoShovel.MouseButton1Click:Connect(function()
+    isAutoShovelOn = not isAutoShovelOn
+    if isAutoShovelOn then
+        btnAutoShovel.Text = "Auto Shovel / Remove Plant [ON]"
+        btnAutoShovel.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        btnAutoShovel.Text = "Auto Shovel / Remove Plant [OFF]"
+        btnAutoShovel.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+    end
+end)
+
+btnAntiAfk.MouseButton1Click:Connect(function()
+    isAntiAfkOn = not isAntiAfkOn
+    if isAntiAfkOn then
+        btnAntiAfk.Text = "Anti-AFK & Auto Jump [ON]"
+        btnAntiAfk.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        afkTimer = 0
+    else
+        btnAntiAfk.Text = "Anti-AFK & Auto Jump [OFF]"
+        btnAntiAfk.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
     end
 end)
 
@@ -905,16 +1000,50 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+player.Idled:Connect(function()
+    if isAntiAfkOn then
+        VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    end
+end)
+
 task.spawn(function()
     while task.wait(1) do
+        if isAntiAfkOn then
+            afkTimer = afkTimer + 1
+            if afkTimer >= (antiAfkIntervalMinutes * 60) then
+                afkTimer = 0
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.Jump = true
+                end
+            end
+        else
+            afkTimer = 0
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.1) do
         if isAutoSellOn then
-            sellTimer = sellTimer + 1
+            sellTimer = sellTimer + 0.1
             if sellTimer >= sellIntervalSeconds then
                 sellTimer = 0
                 task.spawn(function()
-                    pcall(function()
-                        sellRemote:InvokeServer("SellAll")
-                    end)
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        local origCFrame = char.HumanoidRootPart.CFrame
+                        char.HumanoidRootPart.CFrame = CFrame.new(148, 204, 673)
+                        task.wait(0.2)
+                        pcall(function()
+                            sellRemote:InvokeServer("SellAll")
+                        end)
+                        task.wait(0.2)
+                        if char:FindFirstChild("HumanoidRootPart") then
+                            char.HumanoidRootPart.CFrame = origCFrame
+                        end
+                    end
                 end)
             end
         end
@@ -944,28 +1073,39 @@ task.spawn(function()
     end
 end)
 
-local function getPlantUuids()
-    local uuids = {}
+local function getPlantData()
+    local plants = {}
     for _, obj in pairs(workspace:GetDescendants()) do
+        local uuid = nil
+        local pName = ""
         if obj:IsA("Model") and obj:GetAttribute("Uuid") then
-            table.insert(uuids, obj:GetAttribute("Uuid"))
+            uuid = obj:GetAttribute("Uuid")
+            pName = obj.Name
         elseif obj:IsA("StringValue") and obj.Name == "Uuid" then
-            table.insert(uuids, obj.Value)
+            uuid = obj.Value
+            if obj.Parent then pName = obj.Parent.Name end
+        end
+        if uuid then
+            table.insert(plants, {uuid = uuid, name = pName})
         end
     end
-    return uuids
+    return plants
 end
 
 task.spawn(function()
     while task.wait(0.2) do
         if isAutoFarmOn and harvestState == "Harvesting" then
-            local foundUuids = getPlantUuids()
-            for _, uuid in pairs(foundUuids) do
+            local foundPlants = getPlantData()
+            for _, plant in pairs(foundPlants) do
+                if not isAutoFarmOn or harvestState ~= "Harvesting" then
+                    break
+                end
+                
                 task.spawn(function()
-                    pcall(function() harvestRemote:FireServer({[1] = {["Uuid"] = uuid}}) end)
-                    pcall(function() harvestRemote:FireServer({[1] = {["GrowthAnchorIndex"] = 1, ["Uuid"] = uuid}}) end)
-                    pcall(function() harvestRemote:FireServer({[1] = {["GrowthAnchorIndex"] = 2, ["Uuid"] = uuid}}) end)
-                    pcall(function() harvestRemote:FireServer({[1] = {["GrowthAnchorIndex"] = 3, ["Uuid"] = uuid}}) end)
+                    pcall(function() harvestRemote:FireServer({[1] = {["Uuid"] = plant.uuid}}) end)
+                    for i = 1, 6 do
+                        pcall(function() harvestRemote:FireServer({[1] = {["GrowthAnchorIndex"] = i, ["Uuid"] = plant.uuid}}) end)
+                    end
                 end)
             end
         end
@@ -973,23 +1113,105 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    while task.wait(0.5) do
+        if isAutoShovelOn then
+            local foundPlants = getPlantData()
+            for _, plant in pairs(foundPlants) do
+                local shouldRemove = false
+                if shovelMode == "All" then
+                    shouldRemove = true
+                elseif shovelMode == "Whitelist" then
+                    for wlSeed, isSel in pairs(activeSeedWhitelist) do
+                        if isSel then
+                            local baseName = string.gsub(wlSeed, " Seed", "")
+                            if string.find(string.lower(plant.name), string.lower(baseName)) then
+                                shouldRemove = true
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                if shouldRemove then
+                    task.spawn(function()
+                        if removeRemote then
+                            pcall(function() removeRemote:FireServer(plant.uuid) end)
+                            pcall(function() removeRemote:FireServer(plant.uuid, 1) end)
+                            pcall(function() removeRemote:FireServer(plant.uuid, 2) end)
+                            pcall(function() removeRemote:FireServer(plant.uuid, 3) end)
+                            pcall(function() removeRemote:FireServer(plant.uuid, 4) end)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
     while task.wait(0.1) do
-        if isAutoBuyWhitelistOn then
-            for seedName, isSelected in pairs(activeSeedWhitelist) do
-                if isSelected then
+        if autoBuyMode == "Normal" then
+            if isAutoBuyWhitelistOn then
+                for seedName, isSelected in pairs(activeSeedWhitelist) do
+                    if isSelected then
+                        task.spawn(function()
+                            pcall(function() purchaseRemote:InvokeServer("SeedShop", seedName) end)
+                        end)
+                    end
+                end
+            end
+            if isAutoBuyAllOn then
+                for _, seedName in pairs(allSeedsList) do
                     task.spawn(function()
                         pcall(function() purchaseRemote:InvokeServer("SeedShop", seedName) end)
                     end)
                 end
             end
         end
-        if isAutoBuyAllOn then
-            for _, seedName in pairs(allSeedsList) do
-                task.spawn(function()
-                    pcall(function() purchaseRemote:InvokeServer("SeedShop", seedName) end)
-                end)
+    end
+end)
+
+local lastRestockMinute = -1
+task.spawn(function()
+    while task.wait(0.5) do
+        if autoBuyMode == "Beta" and (isAutoBuyWhitelistOn or isAutoBuyAllOn) then
+            local utc = os.date("!*t")
+            if utc.min % 5 == 0 and utc.sec < 5 and utc.min ~= lastRestockMinute then
+                lastRestockMinute = utc.min
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local origCFrame = char.HumanoidRootPart.CFrame
+                    char.HumanoidRootPart.CFrame = CFrame.new(175, 204, 673)
+                    task.wait(0.3)
+                    
+                    local spamEnd = tick() + 8
+                    while tick() < spamEnd do
+                        if isAutoBuyWhitelistOn then
+                            for seedName, isSelected in pairs(activeSeedWhitelist) do
+                                if isSelected then
+                                    task.spawn(function() pcall(function() purchaseRemote:InvokeServer("SeedShop", seedName) end) end)
+                                end
+                            end
+                        end
+                        if isAutoBuyAllOn then
+                            for _, seedName in pairs(allSeedsList) do
+                                task.spawn(function() pcall(function() purchaseRemote:InvokeServer("SeedShop", seedName) end) end)
+                            end
+                        end
+                        task.wait(0.1)
+                    end
+                    
+                    if char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = origCFrame
+                    end
+                end
             end
         end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
         if isAutoBuyGearWhitelistOn then
             for gearName, isSelected in pairs(activeGearWhitelist) do
                 if isSelected then
@@ -1028,6 +1250,10 @@ local function getTargetPos()
 end
 
 local function extractBaseSeedName(itemName)
+    if string.find(string.lower(itemName), "kg") then
+        return nil, nil
+    end
+    
     for _, fullName in ipairs(allSeedsList) do
         local baseName = string.gsub(fullName, " Seed", "")
         if string.find(itemName, baseName) then
@@ -1038,44 +1264,59 @@ local function extractBaseSeedName(itemName)
 end
 
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.2) do
         if isAutoPlantOn then
+            local char = player.Character
+            if not char then continue end
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if not humanoid then continue end
+            
             local targetPos = getTargetPos()
-            local itemsToCheck = {}
+            local currentTool = char:FindFirstChildOfClass("Tool")
             
-            if plantSourceMode == "Equipped" then
-                if player.Character then
-                    for _, item in pairs(player.Character:GetChildren()) do
-                        if item:IsA("Tool") then table.insert(itemsToCheck, item) end
-                    end
-                end
-            else
-                if player.Backpack then
-                    for _, item in pairs(player.Backpack:GetChildren()) do table.insert(itemsToCheck, item) end
-                end
-                if player.Character then
-                    for _, item in pairs(player.Character:GetChildren()) do
-                        if item:IsA("Tool") then table.insert(itemsToCheck, item) end
-                    end
-                end
-            end
-            
-            for _, item in pairs(itemsToCheck) do
-                local extractedName, fullName = extractBaseSeedName(item.Name)
+            if currentTool then
+                local extractedName, fullName = extractBaseSeedName(currentTool.Name)
                 if extractedName then
                     local shouldPlant = false
-                    if plantSourceMode == "All" or plantSourceMode == "Equipped" then
+                    if plantSourceMode == "Equipped" or plantSourceMode == "All" then
                         shouldPlant = true
                     elseif plantSourceMode == "Whitelist" and activeSeedWhitelist[fullName] then
                         shouldPlant = true
                     end
                     
                     if shouldPlant then
-                        task.spawn(function()
-                            pcall(function()
-                                plantRemote:InvokeServer(extractedName, targetPos)
-                            end)
+                        pcall(function()
+                            plantRemote:InvokeServer(extractedName, targetPos)
                         end)
+                    elseif plantSourceMode ~= "Equipped" then
+                        humanoid:UnequipTools()
+                    end
+                elseif plantSourceMode ~= "Equipped" then
+                    humanoid:UnequipTools()
+                end
+            else
+                if plantSourceMode == "All" or plantSourceMode == "Whitelist" then
+                    local bp = player.Backpack
+                    if bp then
+                        for _, item in pairs(bp:GetChildren()) do
+                            if item:IsA("Tool") then
+                                local extractedName, fullName = extractBaseSeedName(item.Name)
+                                if extractedName then
+                                    local shouldEquip = false
+                                    if plantSourceMode == "All" then
+                                        shouldEquip = true
+                                    elseif plantSourceMode == "Whitelist" and activeSeedWhitelist[fullName] then
+                                        shouldEquip = true
+                                    end
+                                    
+                                    if shouldEquip then
+                                        humanoid:EquipTool(item)
+                                        task.wait(0.15)
+                                        break
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
